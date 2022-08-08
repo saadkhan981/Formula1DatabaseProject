@@ -1,6 +1,6 @@
-# Formula1DatabaseProject
+
 Formula 1 Database Project
-Introduction
+
 This database will maintain the records of points earned by each driver in each race for each Season.
 10 teams | 20 drivers | 22 races | 440 race results | 1 champion
 Since per team there are two drivers and per season there will be 22 races therefore total number of race results (entries) will be 440. The driver with most points, will win the championship.
