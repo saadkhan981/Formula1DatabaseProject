@@ -1,0 +1,282 @@
+---
+title: "Formula.1"
+author: "Khan, Saad"
+date: "2/14/2022"
+output: html_document
+---
+
+```{r setup}
+library (knitr)
+library (DBI)
+library (RSQLite)
+
+knitr::opts_chunk$set(echo = TRUE)
+
+FormulaDB12 = dbConnect(RSQLite::SQLite(), dbname = "E:\\Analytics\\ITC6000\\database\\F1(revision2).db")
+
+knitr::opts_chunk$set(connection = FormulaDB12)
+```
+
+```{r}
+DBI::dbListTables(FormulaDB12)
+```
+<P><BR>
+<B><FONT SIZE=3, COLOR="#000000">
+Business Query 1: 
+FIA wants to know Top 10 Drivers based on the points they earned during the season 2021? Also mention which Team they belong to. Since Driver with most points will be the champion for year 2021.
+</FONT></B>
+```{sql connection=FormulaDB12, max.print=-1}
+--Using the simpler query as discussed during office hours the output is ordered by Driver.Driver_ID, therefore I have used nested query (I also browsed https://stackoverflow.com/questions/4687827/mysql-group-by-with-order-by-desc)
+
+--Below query is giving result sorted by Driver.Driver_ID
+--Select Driver.Driver_ID, Team.Team_Name,(Driver.FirstName || " "|| Driver.LastName) AS 'Driver Name', SUM(EachRaceResult.PTSEarned_perRace) AS 'Total Points' FROM Driver, EachRaceResult, Team WHERE Team.Driver_ID = Driver.Driver_ID AND EachRaceResult.Driver_ID = Driver.Driver_ID GROUP BY Driver.Driver_ID ORDER BY 'Total Points' DESC LIMIT 03;
+
+--Therefore I have used a nested query
+Select  T1.Driver_Number,T2.Team_Name,(T1.FirstName || " "|| T1.LastName) AS 'Driver Name', (SELECT SUM(T3.PTSEarned_perRace) FROM EachRaceResult AS T3 WHERE T3.Driver_ID = T1.Driver_ID GROUP BY Driver_ID) AS 'Total Points', RANK () OVER (ORDER BY (SELECT SUM(T3.PTSEarned_perRace) FROM EachRaceResult AS T3 WHERE T3.Driver_ID = T1.Driver_ID GROUP BY Driver_ID) DESC) AS 'Driver Rank'
+FROM Driver AS T1, Team AS T2, TeamDrivers AS T4 
+WHERE T1.Driver_ID = T4.Driver_ID AND T2.Team_ID = T4.Team_ID
+ORDER BY (SELECT SUM(T3.PTSEarned_perRace) FROM EachRaceResult AS T3 WHERE T3.Driver_ID = T1.Driver_ID GROUP BY Driver_ID) DESC LIMIT 10
+```
+</FONT>
+Inference: The list shows Top ten Drivers who earned most points in season 2021. The data shows that "Max Verstappen" is the new champion for the year 2021. It also shows that the competition between "Max Verstappen" and "Lewis Hamilton" was very intense since the difference between both of their accumulative points are very less. Whereas top four positions belongs to only two teams i.e. "Red Bull" and "Mercedes", which means that these two teams dominated the whole season and their Drivers and Engines outperformed every other team.
+</FONT>
+
+<P><BR>
+<B><FONT SIZE=3, COLOR="#000000">
+Business Query 2:
+FIA wants to know that which Teams failed to even complete the race during season 2021 and what was there failure rate in season 2021?
+</FONT></B>
+##In Formula1   Ret = Retired
+##              DSQ = Disqualified
+##              WD  = Withdrawal
+##              DNF = Did not finished
+```{sql connection=FormulaDB12, max.print=-1}
+Select Team.Team_Name, Team.Team_ID ,COUNT (EachRaceResult.Position) AS 'Failed to Finish Race', (ROUND((CAST(COUNT(EachRaceResult.Position) AS FLOAT)/22)*100,1) || " "|| '%') AS 'Failure Percentage', (SELECT SUM(EachRaceResult.PTSEarned_perRace) FROM EachRaceResult WHERE EachRaceResult.Team_ID = Team.Team_ID GROUP BY Team_ID) AS 'Total Points',RANK () OVER (ORDER BY (SELECT SUM(EachRaceResult.PTSEarned_perRace) FROM EachRaceResult WHERE EachRaceResult.Team_ID = Team.Team_ID GROUP BY Team_ID) DESC) AS 'Team Rank'
+FROM Team
+JOIN EachRaceResult ON Team.Team_ID = EachRaceResult.Team_ID 
+where EachRaceResult.Position LIKE "Ret" OR "DSQ" OR "WD" OR "DNF"
+GROUP BY Team.Team_Name 
+ORDER BY COUNT (EachRaceResult.Position) DESC, (SELECT SUM(EachRaceResult.PTSEarned_perRace) FROM EachRaceResult WHERE EachRaceResult.Team_ID = Team.Team_ID GROUP BY Team_ID) ASC
+```
+<FONT>
+Inference: The failure rate of Team Williams is most high i.e. 31.8% and they were only able to score only 16 points in 22 races, hence the rank of Team Williams is 8th (out of 10). Whereas the failure rate of Team Haas is second highest i.e. 27.3% but they were not able to score any point during whole season and hence finished last i.e. their team rank is 10th for the 2021 season, that means they either didn' completed the race or were only able to secure positions lower than 10th.
+<FONT>
+
+<P><BR>
+<B><FONT SIZE=3, COLOR="#000000">
+Business Query 3:
+The racing association wants to know the Driver, who won most races in the season 2021?
+</FONT></B>
+##Winning a race in Formula 1 means having 1st position in any race.
+```{sql connection=FormulaDB12, max.print=-1}
+Select Driver_Number,(Driver.FirstName || " "|| Driver.LastName) AS 'Driver Name',
+COUNT (EachRaceResult.Position) AS "Most Wins in 2021 Season"
+FROM Driver JOIN EachRaceResult
+ON Driver.Driver_ID = EachRaceResult.Driver_ID
+where EachRaceResult.Position LIKE "1"
+GROUP BY Driver.Driver_ID
+ORDER BY "Most Wins in 2021 Season" DESC
+```
+</FONT>
+Inference: Max Verstappen won most races in this season i.e. 11 out of 22 races and truly was dominating throughout the season, followed by Lewis Hamilton who won 7 races out of 22. 
+</FONT>
+
+<P><BR>
+<B><FONT SIZE=3, COLOR="#000000">
+Business Query: 4
+Which two teams are the most competitive? Tell by showing the number of wins by each Team in season 2021?
+</FONT></B>
+```{sql connection=FormulaDB12, max.print=-1}
+Select Team.Team_ID,Team.Team_Name,
+COUNT (EachRaceResult.Position) AS "Most Wins in 2021 Season"
+FROM Team JOIN EachRaceResult
+ON Team.Team_ID = EachRaceResult.Team_ID
+where EachRaceResult.Position LIKE "1"
+GROUP BY Team.Team_Name
+ORDER BY "Most Wins in 2021 Season" DESC
+LIMIT 2
+```
+
+<P><BR>
+<B><FONT SIZE=3, COLOR="#000000">
+Business Query: 5
+Which is the longest track in season 2021?
+</FONT></B>
+```{sql connection=FormulaDB12, max.print=-1}
+Select Circuit.Circuit_ID, Circuit.Location, Circuit.TrackLength
+FROM Circuit
+ORDER BY Circuit.TrackLength DESC
+```
+<FONT>
+Inference: The track located in Belgium is the longest track with track length of 7.004 kms.
+<FONT>
+
+<P><BR>
+<B><FONT SIZE=3, COLOR="#000000">
+Business Query: 6
+What are the top three manufacturers, of which PowerUnits were used most by Teams during Season 2021?
+</FONT></B>
+```{sql connection=FormulaDB12, maxprint=-1}
+SELECT Engine.PowerUnit AS 'MANUFACTURER', COUNT(Engine.PowerUnit) AS 'NUMBER OF TEAMS WHICH USED POWERUNITS'
+FROM Engine
+GROUP BY Engine.PowerUnit
+ORDER BY COUNT(Engine.PowerUnit) DESC
+LIMIT 3
+```
+<FONT>
+Inference: From the report we can see that the engines manufactured by company Mercedes are most used by the teams in 2021 season and the number count is 8.
+<FONT>
+
+<P><BR>
+<B><FONT SIZE=3, COLOR="#000000">
+Business Query: 7
+FIA wants to categorize Drivers who won atleast one race into four skill sets (as 'Leader', 'Competitor', 'Experienced' and 'Beginner') based on the total number of wins in Season 2021.
+</FONT></B>
+```{sql connection=FormulaDB12, max.print=-1}
+Select Driver.Driver_ID, (Driver.FirstName || " "|| Driver.LastName) AS 'Driver Name',
+COUNT (EachRaceResult.Position) AS 'Most Wins in 2021 Season',
+CASE 
+    WHEN COUNT(EachRaceResult.Position) > 10 THEN 'Leader'
+    WHEN COUNT(EachRaceResult.Position) > 5 AND COUNT(EachRaceResult.Position) < 10 THEN 'Competitor'
+    WHEN COUNT(EachRaceResult.Position) > 1 AND COUNT(EachRaceResult.Position) < 5 THEN  'Experienced'
+    ELSE 'Beginner'
+END AS 'Driver Skill Level'
+FROM Driver JOIN EachRaceResult
+ON Driver.Driver_ID = EachRaceResult.Driver_ID
+where EachRaceResult.Position LIKE "1"
+GROUP BY Driver.Driver_ID
+ORDER BY "Most Wins in 2021 Season" DESC
+```
+<FONT>
+Inference: The Driver Skill Level of Max Verstappen is Leader since he won most races during 2021 season, followed by Lewis Hamilton who won 7 races and has skill level as Competitor.
+<FONT>
+
+<P><BR>
+<B><FONT SIZE=3, COLOR="#000000">
+Business Query: 8
+FIA wants to rank Teams. The ranking is done based on the number of wins in Season 2021.
+</FONT></B>
+```{sql connection=FormulaDB12, max.print=-1}
+Select Team.Team_ID,Team.Team_Name,
+COUNT (EachRaceResult.Position) AS "Most Wins in 2021 Season",RANK () OVER (ORDER BY COUNT (EachRaceResult.Position) DESC) AS 'Driver Rank'
+FROM Team JOIN EachRaceResult
+ON Team.Team_ID = EachRaceResult.Team_ID
+where EachRaceResult.Position LIKE "1"
+GROUP BY Team.Team_Name
+```
+<FONT>
+Inference: Red Bull is ranked as 1st since they were able to secure most wins during 2021 season followed by Mercedes who won 9 times throughout the season and are ranked as 2nd. 
+<FONT>
+
+<P><BR>
+<B><FONT SIZE=3, COLOR="#000000">
+Business Query: 9
+FIA wants to know about the Driver's name who won in first six races of the season (Using VIEW).
+</FONT></B>
+```{sql connection=FormulaDB12, max.print=-1}
+CREATE VIEW IF NOT EXISTS FirstSixWins
+AS 
+
+Select Driver.Driver_ID, (Driver.FirstName || " "|| Driver.LastName) AS 'Driver Name'
+FROM Driver JOIN EachRaceResult
+ON Driver.Driver_ID = EachRaceResult.Driver_ID
+where EachRaceResult.Position LIKE "1"
+ORDER BY Race_ID ASC;
+```
+
+```{sql connection=FormulaDB12, max.print=-1}
+SELECT * FROM FirstSixWins LIMIT 06
+```
+<FONT>
+Inference: From the generated list we can see that in the first six races Lewis Hamilton dominated by winning three races from first six races, whereas Max Verstappen won two from six races. 
+<FONT>
+
+<P><BR>
+<B><FONT SIZE=3, COLOR="#000000">
+Business Query: 10
+FIA wants to know the Lead and Support role of each Driver within a Team. Since every team has one Lead Driver and one Support Driver.(Using WITH Clause and Ranking with Partition)
+</FONT></B>
+```{sql connection=FormulaDB12, max.print=-1}
+WITH Records AS (
+SELECT EachRaceResult.Team_ID,Team.Team_Name, Driver.FirstName  AS'Driver Name', SUM(EachRaceResult.PTSEarned_perRace) AS Points
+FROM EachRaceResult, Team, Driver
+WHERE EachRaceResult.Team_ID = Team.Team_ID 
+      AND Driver.Driver_ID = EachRaceResult.Driver_ID 
+GROUP BY EachRaceResult.Driver_ID 
+)
+
+SELECT *, RANK() OVER (PARTITION BY Team_Name ORDER BY Points DESC) AS 'DriverRank within Team',
+CASE 
+    WHEN RANK() OVER (PARTITION BY Team_Name ORDER BY Points DESC) > 1 THEN 'Support'
+    ELSE 'Lead'
+END AS 'Driver Role'
+FROM Records;
+```
+<FONT>
+Inference: With the given report, we can see that who is the Lead Driver within each Team and who is the Support Driver. Each Team used to maximize their resources on Lead Driver and ask the Support Driver to assist the Lead Driver for maximum wins per season so as to earn most points for team and for Drivers championship, since only one Driver can win a race. So here, if we see Mercedes Team, then Lewis is the Lead Driver who earned 372.5 points whereas Valtteri is the Support Driver who earned 215 points throughout the season.
+<FONT>
+
+<P><BR>
+<B><FONT SIZE=3, COLOR="#000000">
+Business Query: 11
+FIA wants to know the TeamHead and Driver of each team in the same table with Name along with Team_ID
+</FONT></B>
+```{sql connection=FormulaDB12, maxprint=-1}
+SELECT (Driver.FirstName || " "|| Driver.LastName) AS 'Name', 'RaceDriver' ||  Driver.Driver_Number AS 'Who_Is', TeamDrivers.Team_ID FROM Driver, TeamDrivers WHERE TeamDrivers.Driver_ID = Driver.Driver_ID
+
+UNION 
+
+SELECT Team_Members.TeamPrincipal AS 'Name', 'TeamHead' AS 'Who_Is',Team_Members.Team_ID FROM Team_Members
+
+ORDER BY Team_Members.Team_ID
+```
+<FONT>
+Inference: The report generated shows the Team Head and the Drivers associated with each team.
+<FONT>
+
+<P><BR>
+<B><FONT SIZE=3, COLOR="#000000">
+Business Query: 12
+FIA want to know Drivers, who did not not won any race or didn't secured 1st position in any of the race from all 22 races throughout the season.
+</FONT></B>
+```{sql connection=FormulaDB12, maxprint=-1}
+SELECT Driver.Driver_ID, (Driver.FirstName || " "|| Driver.LastName) AS 'Driver Name'
+FROM Driver
+
+EXCEPT
+
+Select Driver.Driver_ID, (Driver.FirstName || " "|| Driver.LastName) AS 'Driver Name'
+FROM Driver JOIN EachRaceResult
+ON Driver.Driver_ID = EachRaceResult.Driver_ID
+where EachRaceResult.Position LIKE "1"
+GROUP BY Driver.Driver_ID
+```
+<FONT>
+Inference: The list shows the name of the drivers who failed to secured 1st position in any of the races from a total of 22 races throughout the the season.
+<FONT>
+
+<P><BR>
+<B><FONT SIZE=3, COLOR="#000000">
+Business Query: 13
+The racing association wants to know only Top 5 Drivers, based on the points they earned throughout the season 2021?
+</FONT></B>
+```{sql connection=FormulaDB12, maxprint=-1}
+SELECT  (T1.FirstName || " "|| T1.LastName) AS 'Driver Name',T1.Age, Sum(T2.PTSEarned_perRace) AS 'Total Points'
+     FROM Driver AS T1
+     LEFT JOIN EachRaceResult AS T2
+     ON T2.Driver_ID = T1.Driver_ID
+     GROUP BY T1.Driver_ID 
+
+INTERSECT
+     
+SELECT (T1.FirstName || " "|| T1.LastName) AS 'Driver Name',T1.Age, Sum(T2.PTSEarned_perRace) AS 'Total Points'
+     FROM Driver AS T1
+     LEFT JOIN EachRaceResult AS T2
+     ON T2.Driver_ID = T1.Driver_ID
+     GROUP BY T1.Driver_ID 
+     ORDER BY Sum(T2.PTSEarned_perRace) DESC
+     LIMIT 5
+```
+<FONT>
+Inference: Above is the list of Drivers who were able to make to the Top 5 positions in the season by earning most points throughout the season.
+<FONT>
