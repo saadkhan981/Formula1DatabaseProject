@@ -2,8 +2,11 @@
 Formula 1 Database Project
 
 This database will maintain the records of points earned by each driver in each race for each Season.
+
 10 teams | 20 drivers | 22 races | 440 race results | 1 champion
+
 Since per team there are two drivers and per season there will be 22 races therefore total number of race results (entries) will be 440. The driver with most points, will win the championship.
+
 Project idea and why it interests me: 
 To develop a database for a racing competition e.g., Formula 1 (F1). Involving multiple teams, multiple drivers with race taking place on different locations all around the world. 
 I started following F1 after watching Netflix series namely “Drive to Survive” in 2019. It’s so thrilling and exciting. It does not only depend upon the technology of the car and driver capabilities rather it’s a team effort including contributions from strategy engineers, analyst, team principal and even from the tire changing crew.
